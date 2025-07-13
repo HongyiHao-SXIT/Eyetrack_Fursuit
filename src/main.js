@@ -1,68 +1,45 @@
 import { createApp } from 'vue'
 import App from './App.vue'
 import router from './router'
+import './plugins/element.js'
+import './plugins/device.js'
+import Toasted from 'vue-toasted'
+import Persist from 'vue-component-persist'
+import echarts from 'echarts'
+import VueCropper from 'vue-cropper' 
 
-// Element Plus 替代 element-ui
-import ElementPlus from 'element-plus'
-import 'element-plus/dist/index.css'
-
-// vue-toastification 替代 vue-toasted
-import Toast, { useToast } from 'vue-toastification'
-import 'vue-toastification/dist/index.css'
-
-// echarts 保留
-import * as echarts from 'echarts'
-
-// vue-advanced-cropper 替代 vue-cropper（示例用法，具体封装可继续优化）
-import 'vue-advanced-cropper/dist/style.css'
-
-// 手动模拟 vue-component-persist 的功能
-function persistPlugin(app) {
-  app.config.globalProperties.$persist = {
-    read(key) {
-      const raw = localStorage.getItem(key)
-      if (!raw) return null
-      try {
-        const data = JSON.parse(raw)
-        data.data.isStale = true
-        return data
-      } catch (e) {
-        console.error(e)
-        return null
-      }
-    }
-  }
-}
-
-// 去重 Toast 逻辑封装
-let lastToastText = null
-function createToastDeduplicator(toast) {
-  return (text, options = {}) => {
-    if (text !== lastToastText) {
-      lastToastText = text
-      setTimeout(() => (lastToastText = null), 5000)
-      return toast(text, options)
-    }
-  }
-}
-
-// 创建 App 实例
 const app = createApp(App)
 
-app.use(router)
-app.use(ElementPlus)
-app.use(Toast, {
-  timeout: 5000,
-  position: 'top-center'
-})
-app.use(persistPlugin)
-
-// 原型挂载 echarts
+app.use(VueCropper)
 app.config.globalProperties.$echarts = echarts
+app.config.productionTip = false
 app.config.globalProperties.window = window
 
-// 注入 toast 去重（可在组件中使用 app.config.globalProperties.$toastDedup）
-const toast = useToast()
-app.config.globalProperties.$toastDedup = createToastDeduplicator(toast)
+app.use(Toasted, {
+  duration: 5000,
+  position: 'top-center'
+})
 
+app.use(Persist, {
+  read: k => {
+    let data = JSON.parse(localStorage.getItem(k))
+    try {
+      data.data.isStale = true
+    } catch (e) { throw e; }
+    return data
+  }
+})
+
+// Toast 去重
+let lastToastText = null
+app.config.globalProperties.$toasted.__show = app.config.globalProperties.$toasted.show
+app.config.globalProperties.$toasted.show = (text, ...args) => {
+  if (text !== lastToastText) {
+    lastToastText = text
+    setTimeout(() => lastToastText = null, 5000)
+    return app.config.globalProperties.$toasted.__show(text, ...args)
+  }
+}
+
+app.use(router)
 app.mount('#app')
